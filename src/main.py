@@ -4,18 +4,7 @@ import csv
 
 # Set the environment variable to point to your license file
 os.environ["GRB_LICENSE_FILE"] = "/home/samuel/Downloads/gurobi.lic"
-
-class Task:
-    def __init__(self, id, processing_time, penalty_for_early_completion, penalty_for_delay):
-        self.id = id
-        self.processing_time = processing_time
-        self.penalty_for_early_completion = penalty_for_early_completion
-        self.penalty_for_delay = penalty_for_delay
-    
-    def __str__(self):
-        return f'id: {self.id}; processing_time: {self.processing_time}; penalty_for_early_completion = {self.penalty_for_early_completion}; penalty_for_delay: {self.penalty_for_delay}'
-
-        
+       
 class CommonDueDateSchedulingProblem:
     def __init__(self, csv_filename, due_date, verbose = False):
         self.csv_filename = csv_filename
@@ -108,27 +97,12 @@ class CommonDueDateSchedulingProblem:
         return sorted_indexes
     
     def _define_initial_condition(self, tasks):
-        sorted_indexes = self._order_by_delay(tasks)
-        initial_J_matrix = [[0 for _ in range(len(tasks))] for _ in range(len(tasks))]
-
-        for i in range(0, len(tasks)):
-            for k in range(0, len(tasks)):
-                if sorted_indexes[k] == i:
-                    initial_J_matrix[i][k] = 1
-                    print(i,k)
-
-        if self.verbose:
-            print(sorted_indexes)
-
-        return initial_J_matrix
+        #TO DO
+        return
     
     def _relax_and_fix(self, tasks, J_matrix, obj_fn):
-        self.fixed_constraints = []
-        initial_J_matrix = self._define_initial_condition(tasks)
-        for i in range(0, len(tasks)):
-            for k in range(0, len(tasks)):
-                self.fixed_constraints.append(self.model.add_constraint(J_matrix[i][k]==initial_J_matrix[i][k]))
-        self._solve_problem(obj_fn)
+        #TO DO
+        return
 
 
     def compute_best_solution(self):
@@ -148,6 +122,6 @@ class CommonDueDateSchedulingProblem:
         #self._relax_and_fix( tasks, J_matrix, obj_fn)
 
 due_date = 2
-input_filename = '../data/sch100k1.csv'
+input_filename = '../data/simple.csv'
 problem = CommonDueDateSchedulingProblem(input_filename, due_date, verbose=True)
 problem.compute_best_solution()
