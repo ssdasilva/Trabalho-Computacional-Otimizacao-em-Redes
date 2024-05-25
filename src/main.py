@@ -1,58 +1,9 @@
-"""
-from docplex.mp.model import Model
-
-milp_model = Model(name = 'MILP')
-
-p_1 = 3
-p_2 = 5
-D_d = 2
-
-e_1 = milp_model.integer_var(name='e_1', lb = 0)
-t_1 = milp_model.integer_var(name='t_1', lb = 0)
-e_2 = milp_model.integer_var(name='e_2', lb = 0)
-t_2 = milp_model.integer_var(name='t_2', lb = 0)
-
-d_1 = milp_model.integer_var(name='d_1', lb = 0)
-d_2 = milp_model.integer_var(name='d_2', lb = 0)
-
-
-J_11 = milp_model.binary_var(name='J_11')
-J_12 = milp_model.binary_var(name='J_12')
-J_21 = milp_model.binary_var(name='J_21')
-J_22 = milp_model.binary_var(name='J_22')
-
-tau_1 = milp_model.integer_var(name='tau_1', lb = 0)
-tau_2 = milp_model.integer_var(name='tau_2', lb = 0)
-
-c1 = milp_model.add_constraint(J_11 + J_21==1)
-c2 = milp_model.add_constraint(J_12 + J_22==1)
-c3 = milp_model.add_constraint(J_11 + J_12==1)
-c4 = milp_model.add_constraint(J_21 + J_22==1)
-
-c5 = milp_model.add_constraint(((J_11 * p_1) + (J_21 * p_2)) == tau_1)
-c6 = milp_model.add_constraint((tau_1 + ((J_12 * p_1) + (J_22 * p_2))) == tau_2)
-
-M=p_1+p_2+1
-c7 = milp_model.add_constraint(d_1 == (tau_1 * J_11) + (tau_2 * J_12) )
-c7 = milp_model.add_constraint(d_1 >= tau_1 - (M * (1-J_11)) )
-c8 = milp_model.add_constraint(d_1 >= tau_2 - (M * (1-J_12)) )
-c9 = milp_model.add_constraint(d_2 >= tau_1 - (M * (1-J_21)) )
-c10 = milp_model.add_constraint(d_2 >= tau_2 - (M * (1-J_22)) )
-c11 = milp_model.add_constraint(tau_1 + tau_2 == d_1 + d_2 )
-obj_fn = (20 * e_1) + (80 * t_1) + (30 * e_2) + (70 * t_2)
-
-
-c12 = milp_model.add_constraint(t_1 >= d_1 - D_d)
-c13 = milp_model.add_constraint(t_2 >= d_2 - D_d)
-
-milp_model.set_objective('min', obj_fn)
-milp_model.print_information()
-milp_model.solve()
-milp_model.print_solution()
-"""
-from docplex.mp.model import Model
+from gurobipy import *
 import numpy as np
 import csv
+
+# Set the environment variable to point to your license file
+os.environ["GRB_LICENSE_FILE"] = "/home/samuel/Downloads/gurobi.lic"
 
 class Task:
     def __init__(self, id, processing_time, penalty_for_early_completion, penalty_for_delay):
@@ -69,111 +20,80 @@ class CommonDueDateSchedulingProblem:
     def __init__(self, csv_filename, due_date, verbose = False):
         self.csv_filename = csv_filename
         self.verbose = verbose
-        self.due_date = due_date
+        self.D_d = due_date
 
-    def _get_tasks(self, filename):
+    def _read_tasks_from_csv(self, filename):
         with open(filename, newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',', quotechar=';')
             
-            tasks = []
+            beta = {}
+            alpha = {}
+            p = {}
+
             task_id = 1
             M = 1
             for row in spamreader:
-                processing_time = int(row[0])
-                penalty_for_early_completion =  int(row[1])
-                penalty_for_delay = int(row[2].replace(';',''))
-                task = Task(task_id, processing_time, penalty_for_early_completion, penalty_for_delay)
-                tasks.append(task)
-                task_id = task_id + 1
-                M = M + processing_time
-
+                p[task_id] = int(row[0])
+                alpha[task_id] =  int(row[1])
+                beta[task_id] = int(row[2].replace(';',''))
+                M = M + p[task_id]
+                
                 if self.verbose:
-                    print(task)
-        
-        return tasks, M
-        
-    def _add_input_variables_to_milp(self, tasks):
-        self.milp_model = Model(name = 'MILP')
-        early_completion_times = []
-        delay_times = []
-        dates_of_delivery = []
-        processing_time_of_order_k = []
+                    print(f'i: {task_id}; p: {p[task_id]}; alpha = {alpha[task_id]}; beta: {beta[task_id]}')
 
-        num_tasks = len(tasks)
-        J_matrix = [[None for _ in range(num_tasks)] for _ in range(num_tasks)]
-        index = 0
+                task_id = task_id + 1
+        
+        return p, alpha, beta, M
+        
+    def _add_input_variables(self, num_tasks):
+        self.model = Model(name = 'Common Due Date Scheduling Problem')
 
-        for task in tasks:
-            early_completion_times.append(self.milp_model.integer_var(name=f'e_{task.id}', lb = 0))
-            delay_times.append(self.milp_model.integer_var(name=f't_{task.id}', lb = 0))
-            dates_of_delivery.append(self.milp_model.integer_var(name=f'd_{task.id}', lb = 0))
-            processing_time_of_order_k.append(self.milp_model.integer_var(name=f'tau_{index+1}', lb = 0))
+        e = {}
+        t = {}
+        d = {}
+        tau = {}
+        J = {}
+
+        for index in range(0, num_tasks):
+            e[index+1] = self.model.addVar(vtype=GRB.INTEGER, name=f'e_{index+1}', lb = 0)
+            t[index+1] = self.model.addVar(vtype=GRB.INTEGER, name=f't_{index+1}', lb = 0)
+            d[index+1] = self.model.addVar(vtype=GRB.INTEGER, name=f'd_{index+1}', lb = 0)
+            tau[index+1] = self.model.addVar(vtype=GRB.INTEGER, name=f'tau_{index+1}', lb = 0)
+
+            J[index+1] = {}
+            for k in range(0, num_tasks):
+                J[index+1][k+1] = self.model.addVar(vtype=GRB.BINARY, name=f'J_{index+1}_{k+1}')
+        
+        return e, t, d, tau, J
+
+    def _add_constraints(self, J, tau, d, M, e, t, p, num_tasks):
+        for i in range(0, num_tasks):
+            self.model.addConstr(quicksum(J[i+1][j+1] for j in range(0, num_tasks)) == 1)
+            self.model.addConstr(quicksum(J[j+1][i+1] for j in range(0, num_tasks)) == 1)
+            self.model.addConstr(t[i+1] >= d[i+1] - self.D_d)
+            self.model.addConstr(e[i+1] >= self.D_d - d[i+1])
 
             for k in range(0, num_tasks):
-                J_matrix[index][k] = self.milp_model.binary_var(name=f'J_{index+1}_{k+1}')
+                self.model.addConstr(d[i+1] >= tau[k+1] - (M*(1-J[i+1][k+1])))
 
-            index = index + 1
-        
-        return early_completion_times, delay_times, dates_of_delivery, processing_time_of_order_k, J_matrix
+        self.model.addConstr(tau[1] == quicksum(J[i+1][1]*p[i+1] for i in range(0, num_tasks)))
 
-    def _add_constraints_to_milp(self, tasks, J_matrix, processing_time_of_order_k, dates_of_delivery, M, early_completion_times, delay_times):
-        tau_k_constraints = [0 for _ in range(len(tasks))]
-        tau_sum = 0
-        dates_of_delivery_sum = 0
-        minimum_delay_of_task = [0 for _ in range(len(tasks))]
-        minimum_early_completion_of_task = [0 for _ in range(len(tasks))]
+        for k in range(1, num_tasks):
+            self.model.addConstr(tau[k+1] == tau[k] + quicksum(J[i+1][k+1]*p[i+1] for i in range(0, num_tasks)))
 
-        for task in tasks:
-            task_id = task.id
-            i = task_id - 1
-            task_order = i
-            J_sum_horizontal = 0
-            J_sum_vertical = 0
-            minimum_delivery_dates_of_task = [[0 for _ in range(len(tasks))] for _ in range(len(tasks))]
+        self.model.addConstr(quicksum(tau[k+1] for k in range(0, num_tasks)) == quicksum(d[i+1] for i in range(0, num_tasks)))
 
-            for k in range(0, len(tasks)):
-                J_sum_horizontal =  J_sum_horizontal + J_matrix[i][k] 
-                J_sum_vertical = J_sum_vertical + J_matrix[k][i] 
-                tau_k_constraints[task_order] = tau_k_constraints[task_order] + (J_matrix[k][task_order] * tasks[k].processing_time)
-
-            if task_order != 0:
-                tau_k_constraints[task_order] = tau_k_constraints[task_order] + tau_k_constraints[task_order - 1]
-
-            tau_sum = tau_sum + tau_k_constraints[task_order]
-            dates_of_delivery_sum = dates_of_delivery_sum + dates_of_delivery[i]
-            minimum_delay_of_task[i] = dates_of_delivery[i] - self.due_date
-            minimum_early_completion_of_task[i] = self.due_date - dates_of_delivery[i]
-
-            self.milp_model.add_constraint(J_sum_horizontal==1)
-            self.milp_model.add_constraint(J_sum_vertical==1)
-
-            for k in range(0, len(tasks)):
-                minimum_delivery_dates_of_task[i][k] = tau_k_constraints[k] - (M * (1 - J_matrix[i][k]))
-                self.milp_model.add_constraint(dates_of_delivery[i] >= minimum_delivery_dates_of_task[i][k])
-
-
-        for index, value in enumerate(tau_k_constraints):
-            self.milp_model.add_constraint(tau_k_constraints[index]==processing_time_of_order_k[index])
-            self.milp_model.add_constraint(early_completion_times[index] >= minimum_early_completion_of_task[index])
-            self.milp_model.add_constraint(delay_times[index] >= minimum_delay_of_task[index])
-
-        self.milp_model.add_constraint(tau_sum==dates_of_delivery_sum)
-
-
-    def _define_objective_function(self, tasks, early_completion_times, delay_times):
-        obj_fn = 0
-
-        for task in tasks:
-            i = task.id - 1
-            obj_fn = obj_fn + (task.penalty_for_early_completion * early_completion_times[i]) + (task.penalty_for_delay * delay_times[i])
-
-        return obj_fn
+    def _define_objective_function(self, alpha, e, beta, t, num_tasks):
+        self.model.setObjective(
+            quicksum(((alpha[i+1]*e[i+1]) + (beta[i+1]*t[i+1])) for i in range(0, num_tasks)),
+            sense=GRB.MINIMIZE
+        )
 
     def _solve_problem(self, obj_fn):
-        self.milp_model.set_objective('min', obj_fn)
-        self.milp_model.print_information()
-        self.milp_model.solve()
-        self.milp_model.print_solution()
+        self.model.set_objective('min', obj_fn)
+        self.model.print_information()
+        self.model.solve()
+        self.model.print_solution()
 
     def _order_by_delay(self, tasks):
         # Create a list of tuples (index, penalty_for_delay)
@@ -207,20 +127,27 @@ class CommonDueDateSchedulingProblem:
         initial_J_matrix = self._define_initial_condition(tasks)
         for i in range(0, len(tasks)):
             for k in range(0, len(tasks)):
-                self.fixed_constraints.append(self.milp_model.add_constraint(J_matrix[i][k]==initial_J_matrix[i][k]))
+                self.fixed_constraints.append(self.model.add_constraint(J_matrix[i][k]==initial_J_matrix[i][k]))
         self._solve_problem(obj_fn)
 
 
     def compute_best_solution(self):
-        tasks, M = self._get_tasks(self.csv_filename)
-        early_completion_times, delay_times, dates_of_delivery, processing_time_of_order_k, J_matrix = self._add_input_variables_to_milp(tasks)
-        self._add_constraints_to_milp(tasks, J_matrix, processing_time_of_order_k, dates_of_delivery, M,  early_completion_times, delay_times)
-        obj_fn = self._define_objective_function(tasks, early_completion_times, delay_times)
-        self._define_initial_condition(tasks)
-        self._relax_and_fix( tasks, J_matrix, obj_fn)
+        p, alpha, beta, M = self._read_tasks_from_csv(self.csv_filename)
+        num_tasks = len(p)
+        e, t, d, tau, J = self._add_input_variables(num_tasks)
+        self._add_constraints(J, tau, d, M,  e, t, p, num_tasks)
+        obj_fn = self._define_objective_function(alpha, e, beta, t, num_tasks)
+        
+        self.model.optimize()
+
+        for v in self.model.getVars():
+            print(f"{v.VarName} {round(v.X):g}")
+
+        print(f"Obj: {self.model.ObjVal:g}")
+        #self._define_initial_condition(tasks)
+        #self._relax_and_fix( tasks, J_matrix, obj_fn)
 
 due_date = 2
-input_filename = 'sch100k1.csv'
-#input_filename = 'test.csv'
+input_filename = '../data/sch100k1.csv'
 problem = CommonDueDateSchedulingProblem(input_filename, due_date, verbose=True)
 problem.compute_best_solution()
