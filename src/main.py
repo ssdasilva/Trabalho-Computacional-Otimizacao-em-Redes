@@ -106,9 +106,44 @@ class CommonDueDateSchedulingProblem:
                     self._fix_variable(J[task_id][order], 0)
 
     
-    def _relax_and_fix(self, tasks, J_matrix, obj_fn):
-        #TO DO
-        return
+    def _relax_and_fix(self, J, num_tasks):
+        print ("first iteration of relax and fix")
+        for i in range(0, num_tasks):
+            task_id = i + 1
+            for j in range(0, num_tasks):
+                order = j +1
+                if i < round(0.3 * num_tasks):
+                    self._unfix_variable(J[task_id][order])
+                else:
+                    self._relax_variable(J[task_id][order])
+        
+        self.model.optimize()
+
+        print ("second iteration of relax and fix")
+        for i in range(0, num_tasks):
+            task_id = i + 1
+            for j in range(0, num_tasks):
+                order = j +1
+                if i < round(0.3 * num_tasks):
+                    self._fix_variable(J[task_id][order], J[task_id][order].X)
+                elif i < round(0.6 * num_tasks) :
+                    self._unrelax_variable(J[task_id][order], GRB.INTEGER)
+                else:
+                    self._relax_variable(J[task_id][order])
+        
+        self.model.optimize()
+
+        print ("third iteration of relax and fix")
+        for i in range(0, num_tasks):
+            task_id = i + 1
+            for j in range(0, num_tasks):
+                order = j +1
+                if i < round(0.6 * num_tasks) :
+                    self.self._fix_variable(J[task_id][order], J[task_id][order].X)
+                else:
+                    self._unrelax_variable(J[task_id][order], GRB.INTEGER)
+        
+        self.model.optimize()
 
 
     def _fix_variable(self, var, value):
@@ -116,15 +151,21 @@ class CommonDueDateSchedulingProblem:
         var.ub = value
         return var
     
-    def _unfix_variable(self, var, lower_default=0):
+    def _unfix_variable(self, var, lb=0):
+        var.lb = lb
+        var.ub = float('inf')
+        return var
+    
+    def _unrelax_variable(self, var, vtype, lower_default=0):
+        var.vtype = vtype
         var.lb = lower_default  # Reset lower bound to default (0)
-        var.ub = None  # Reset upper bound to default (unconstrained)
+        var.ub = float('inf')  # Reset upper bound to default (unconstrained)
         return var
     
     def _relax_variable(self, var):
         var.vtype = GRB.CONTINUOUS
-        var.ub = None
-        var.lb = None
+        var.ub = float('inf')
+        var.lb = 0
         return var
 
     def compute_best_solution(self):
@@ -133,18 +174,21 @@ class CommonDueDateSchedulingProblem:
         e, t, d, tau, J = self._add_input_variables(num_tasks)
         self._add_constraints(J, tau, d, M,  e, t, p, num_tasks)
         obj_fn = self._define_objective_function(alpha, e, beta, t, num_tasks)
-        #self._define_initial_condition(beta, J)
-        self.model.optimize()
+        self._define_initial_condition(beta, J)
+        
+        print("Relax and fix")
+        self._relax_and_fix(J, num_tasks)
 
         for v in self.model.getVars():
-            print(f"{v.VarName} {round(v.X):g}")
+            print(f"{v.VarName} {v.X:g}")
 
         print(f"Obj: {self.model.ObjVal:g}")
-        #self._relax_and_fix( tasks, J_matrix, obj_fn)
+
         self.model.dispose()
 
-due_date = 2
+
+due_date = 454
 #input_filename = '../data/sch100k1.csv'
-input_filename = '../data/simple.csv'
+input_filename = '../data/sch100k1.csv'
 problem = CommonDueDateSchedulingProblem(input_filename, due_date, verbose=True)
 problem.compute_best_solution()
