@@ -36,6 +36,7 @@ class CommonDueDateSchedulingProblem:
         
     def _add_input_variables(self, num_tasks):
         self.model = Model(name = 'Common Due Date Scheduling Problem')
+        self.model.setParam('TimeLimit', 180)
 
         e = {}
         t = {}
@@ -105,9 +106,20 @@ class CommonDueDateSchedulingProblem:
                 else:
                     self._fix_variable(J[task_id][order], 0)
 
-    
+    def _found_a_valid_solution(self):
+        if self.model.SolCount > 0:
+            if self.verbose:
+                print("Best solution found:")
+                for v in self.model.getVars():
+                    print(f"{v.VarName} {v.X:g}")
+            return True
+        else:
+            print("Error: it was not able to find a valid solution")
+            exit(1)
+
     def _relax_and_fix(self, J, num_tasks):
-        print ("first iteration of relax and fix")
+        if self.verbose:
+            print ("First iteration of relax and fix...")
         for i in range(0, num_tasks):
             task_id = i + 1
             for j in range(0, num_tasks):
@@ -118,8 +130,10 @@ class CommonDueDateSchedulingProblem:
                     self._relax_variable(J[task_id][order])
         
         self.model.optimize()
+        self._found_a_valid_solution()
 
-        print ("second iteration of relax and fix")
+        if self.verbose:
+            print ("Second iteration of relax and fix...")
         for i in range(0, num_tasks):
             task_id = i + 1
             for j in range(0, num_tasks):
@@ -132,19 +146,66 @@ class CommonDueDateSchedulingProblem:
                     self._relax_variable(J[task_id][order])
         
         self.model.optimize()
+        self._found_a_valid_solution()
 
-        print ("third iteration of relax and fix")
+        if self.verbose:
+            print ("Third iteration of relax and fix...")
         for i in range(0, num_tasks):
             task_id = i + 1
             for j in range(0, num_tasks):
                 order = j +1
                 if i < round(0.6 * num_tasks) :
-                    self.self._fix_variable(J[task_id][order], J[task_id][order].X)
+                    self._fix_variable(J[task_id][order], J[task_id][order].X)
                 else:
                     self._unrelax_variable(J[task_id][order], GRB.INTEGER)
         
         self.model.optimize()
+        self._found_a_valid_solution()
 
+    def _fix_and_optimize(self, J, num_tasks):
+        if self.verbose:
+            print ("First iteration of fix and optmize...")
+        for i in range(0, num_tasks):
+            task_id = i + 1
+            for j in range(0, num_tasks):
+                order = j +1
+                if i < round(0.3 * num_tasks):
+                    self._unfix_variable(J[task_id][order])
+                else:
+                    self._fix_variable(J[task_id][order], J[task_id][order].X)
+        
+        self.model.optimize()
+        self._found_a_valid_solution()
+
+        if self.verbose:
+            print ("Second iteration of fix and optmize...")
+        for i in range(0, num_tasks):
+            task_id = i + 1
+            for j in range(0, num_tasks):
+                order = j +1
+                if i < round(0.3 * num_tasks):
+                    self._fix_variable(J[task_id][order], J[task_id][order].X)
+                elif i < round(0.6 * num_tasks) :
+                    self._unfix_variable(J[task_id][order])
+                else:
+                    self._fix_variable(J[task_id][order], J[task_id][order].X)
+        
+        self.model.optimize()
+        self._found_a_valid_solution()
+
+        if self.verbose:
+            print ("Third iteration of fix and optmize...")
+        for i in range(0, num_tasks):
+            task_id = i + 1
+            for j in range(0, num_tasks):
+                order = j +1
+                if i < round(0.6 * num_tasks) :
+                    self._fix_variable(J[task_id][order], J[task_id][order].X)
+                else:
+                    self._unfix_variable(J[task_id][order])
+        
+        self.model.optimize()
+        self._found_a_valid_solution()
 
     def _fix_variable(self, var, value):
         var.lb = value
@@ -168,16 +229,20 @@ class CommonDueDateSchedulingProblem:
         var.lb = 0
         return var
 
-    def compute_best_solution(self):
+    def compute_solution(self):
         p, alpha, beta, M = self._read_tasks_from_csv(self.csv_filename)
         num_tasks = len(p)
         e, t, d, tau, J = self._add_input_variables(num_tasks)
         self._add_constraints(J, tau, d, M,  e, t, p, num_tasks)
-        obj_fn = self._define_objective_function(alpha, e, beta, t, num_tasks)
+        self._define_objective_function(alpha, e, beta, t, num_tasks)
         self._define_initial_condition(beta, J)
         
         print("Relax and fix")
         self._relax_and_fix(J, num_tasks)
+        self._fix_and_optimize(J, num_tasks)
+        #self.model.optimize()
+        #self.model.computeIIS()
+        #self.model.write(f"model.ilp")
 
         for v in self.model.getVars():
             print(f"{v.VarName} {v.X:g}")
@@ -188,7 +253,6 @@ class CommonDueDateSchedulingProblem:
 
 
 due_date = 454
-#input_filename = '../data/sch100k1.csv'
 input_filename = '../data/sch100k1.csv'
 problem = CommonDueDateSchedulingProblem(input_filename, due_date, verbose=True)
-problem.compute_best_solution()
+problem.compute_solution()
