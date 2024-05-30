@@ -1,4 +1,5 @@
 from gurobipy import *
+import random
 import numpy as np
 import csv
 
@@ -229,6 +230,77 @@ class CommonDueDateSchedulingProblem:
         var.lb = 0
         return var
 
+    def _get_delayed_and_early_tasks(self, t, num_tasks):
+        delayed_tasks = []
+        early_tasks = []
+        for task_id in range(1, num_tasks+1):
+            if t[task_id].X > 0:
+                delayed_tasks.append(task_id)
+            else:
+                early_tasks.append(task_id)
+        return delayed_tasks, early_tasks
+
+    def _neighborhood_change(self, current_best_value, candidate, k):
+        if candidate < current_best_value:
+            current_best_value = candidate
+            k = 1
+        else:
+            k = k + 1
+
+        return current_best_value, k
+
+    def _shake(self, x, k):
+        if k == 1:
+            return self._shake_on_neighborhood_1(x, k)
+        elif k == 2:
+            return self._shake_on_neighborhood_2(x, k)
+        return self._shake_on_neighborhood_3(x, k)
+
+    def _fix_J_Matrix_from_J_vector(self, J_vector, J_matrix, num_tasks):
+        for task_id in range(1, num_tasks+1):
+            for order in range(1, num_tasks+1):
+                if task_id == J_vector[order-1]:
+                    self._fix_variable(J_matrix[task_id][order], 1)
+                else:
+                    self._fix_variable(J_matrix[task_id][order], 0)
+
+    def _get_array_from_J_matrix(self, J, num_tasks):
+        converted_array = []
+
+        for i in range(1, num_tasks+1):
+            for j in range(1, num_tasks+1):
+                if J[j][i].X == 1:
+                    converted_array.append(j)
+                    break
+        
+        return converted_array
+
+    # Randomly select a delayed task and put in the first order
+    def _shake_on_neighborhood_1(self, x, k):
+        e, t, J = x
+        num_tasks = len(e)
+
+        delayed_tasks, _ = self._get_delayed_and_early_tasks(t, num_tasks)
+        num_delayed_tasks = len(delayed_tasks)
+        random_selected_delay_task_id = delayed_tasks[random.randint(0, num_delayed_tasks-1)]
+        J_vector = self._get_array_from_J_matrix(J, num_tasks)
+
+        # Put random selected delay task as first task to be complited
+        J_vector.remove(random_selected_delay_task_id)
+        J_vector = [random_selected_delay_task_id] + J_vector
+        self._fix_J_Matrix_from_J_vector(J_vector, J, num_tasks)
+        # Here we call model optimize only to compute objective function from new shaked solution
+        self.model.optimize()
+
+
+    def _shake_on_neighborhood_2(self, x, k):
+        #TO DO
+        return
+
+    def _shake_on_neighborhood_3(self, x, k):
+        #TO DO
+        return
+
     def compute_solution(self):
         p, alpha, beta, M = self._read_tasks_from_csv(self.csv_filename)
         num_tasks = len(p)
@@ -236,11 +308,21 @@ class CommonDueDateSchedulingProblem:
         self._add_constraints(J, tau, d, M,  e, t, p, num_tasks)
         self._define_objective_function(alpha, e, beta, t, num_tasks)
         self._define_initial_condition(beta, J)
-        
-        print("Relax and fix")
-        self._relax_and_fix(J, num_tasks)
+        self.model.optimize()
+
+        #print("Relax and fix")
+        #self._relax_and_fix(J, num_tasks)
         self._fix_and_optimize(J, num_tasks)
-        #self.model.optimize()
+        
+        for v in self.model.getVars():
+            print(f"{v.VarName} {v.X:g}")
+
+        print(f"Obj: {self.model.ObjVal:g}")
+
+        # test shake method
+
+        self._shake((e, t, J), 1)
+
         #self.model.computeIIS()
         #self.model.write(f"model.ilp")
 
@@ -251,8 +333,7 @@ class CommonDueDateSchedulingProblem:
 
         self.model.dispose()
 
-
 due_date = 454
-input_filename = '../data/sch100k1.csv'
+input_filename = '/home/samuel/Desktop/TC/data/sch100k1.csv'
 problem = CommonDueDateSchedulingProblem(input_filename, due_date, verbose=True)
 problem.compute_solution()

@@ -162,4 +162,4 @@ cython_debug/
 #.idea/
 
 # Output files
-out.txt
+out*.txt
