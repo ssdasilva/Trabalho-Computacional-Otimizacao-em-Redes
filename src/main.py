@@ -314,9 +314,22 @@ class CommonDueDateSchedulingProblem:
         # Here we call model optimize only to compute objective function from new shaked solution
         self.model.optimize()
 
+    # Randomly select a early task and put in the last order
     def _shake_on_neighborhood_3(self, x, k):
-        #TO DO
-        return
+        e, t, J = x
+        num_tasks = len(e)
+
+        _, early_tasks = self._get_delayed_and_early_tasks(t, num_tasks)
+        num_early_tasks = len(early_tasks)
+        random_selected_early_task_id = early_tasks[random.randint(0, num_early_tasks-1)]
+        J_vector = self._get_array_from_J_matrix(J, num_tasks)
+
+        # Put random selected early task in the last task to be complited
+        J_vector.remove(random_selected_early_task_id)
+        J_vector = J_vector + [random_selected_early_task_id]
+        self._fix_J_Matrix_from_J_vector(J_vector, J, num_tasks)
+        # Here we call model optimize only to compute objective function from new shaked solution
+        self.model.optimize()
 
     def compute_solution(self):
         p, alpha, beta, M = self._read_tasks_from_csv(self.csv_filename)
@@ -340,6 +353,7 @@ class CommonDueDateSchedulingProblem:
 
         self._shake((e, t, J), 1)
         self._shake((e, t, J), 2)
+        self._shake((e, t, J), 3)
         #self.model.computeIIS()
         #self.model.write(f"model.ilp")
 
