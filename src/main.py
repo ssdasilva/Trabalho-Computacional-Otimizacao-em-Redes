@@ -37,7 +37,7 @@ class CommonDueDateSchedulingProblem:
         
     def _add_input_variables(self, num_tasks):
         self.model = Model(name = 'Common Due Date Scheduling Problem')
-        self.model.setParam('TimeLimit', 180)
+        self.model.setParam('TimeLimit', 10)
 
         e = {}
         t = {}
@@ -240,14 +240,22 @@ class CommonDueDateSchedulingProblem:
                 early_tasks.append(task_id)
         return delayed_tasks, early_tasks
 
-    def _neighborhood_change(self, current_best_value, candidate, k):
-        if candidate < current_best_value:
-            current_best_value = candidate
+    def _neighborhood_change(self, current_best_solution, candidate, k):
+        current_best_solution_input, current_best_solution_model = current_best_solution
+        candidate_input, candidate_model = candidate
+        current_best_value = current_best_solution_model.ObjVal
+        candidate_value = candidate_model.ObjVal
+
+        if candidate_value < current_best_value:
+            best_solution_model = candidate_model
+            best_solution_input = candidate_input
             k = 1
         else:
+            best_solution_model = current_best_solution_model
+            best_solution_input = current_best_solution_input
             k = k + 1
 
-        return current_best_value, k
+        return best_solution_input, best_solution_model, k
 
     def _shake(self, x, k):
         if k == 1:
@@ -274,6 +282,11 @@ class CommonDueDateSchedulingProblem:
                     break
         
         return converted_array
+
+    def _fix_J_matrix(self, J, num_tasks):
+        for i in range(1, num_tasks+1):
+            for j in range(1, num_tasks+1):
+                self._fix_variable(J[i][j], J[i][j].X)
 
     # Randomly select a delayed task and put in the first order
     def _shake_on_neighborhood_1(self, x):
@@ -331,6 +344,31 @@ class CommonDueDateSchedulingProblem:
         # Here we call model optimize only to compute objective function from new shaked solution
         self.model.optimize()
 
+    def _BVNS(self, x, k_max, max_iterations):
+        num_it = 0
+        e, t, J = x
+        num_tasks = len(e)
+        self._fix_J_matrix(J, num_tasks)
+        best_solution_input = J.copy()
+        best_solution_model = self.model.copy()
+        # Just call optimize here to compute value of objective function
+        best_solution_model.optimize()
+
+        while num_it < max_iterations:
+            k = 1
+            while k <= k_max:
+                self._shake(x, k)
+                self._fix_and_optimize(J, num_tasks)  
+                J, self.model, k = self._neighborhood_change((best_solution_input, best_solution_model), (J, self.model), k)
+                self._fix_J_matrix(J, num_tasks)
+                best_solution_input = J
+                best_solution_model = self.model.copy()
+                best_solution_model.optimize() # Just call optimize here to compute value of objective function with fixed J matrix
+                num_it = num_it + 1
+                if (num_it > max_iterations):
+                    break
+
+
     def compute_solution(self):
         p, alpha, beta, M = self._read_tasks_from_csv(self.csv_filename)
         num_tasks = len(p)
@@ -339,7 +377,7 @@ class CommonDueDateSchedulingProblem:
         self._define_objective_function(alpha, e, beta, t, num_tasks)
         self._define_initial_condition(beta, J)
         self.model.optimize()
-
+        self._BVNS((e, t, J), 3, 10)
         #print("Relax and fix")
         #self._relax_and_fix(J, num_tasks)
         #self._fix_and_optimize(J, num_tasks)
@@ -351,9 +389,9 @@ class CommonDueDateSchedulingProblem:
 
         # test shake method
 
-        self._shake((e, t, J), 1)
-        self._shake((e, t, J), 2)
-        self._shake((e, t, J), 3)
+        #self._shake((e, t, J), 1)
+        #self._shake((e, t, J), 2)
+        #self._shake((e, t, J), 3)
         #self.model.computeIIS()
         #self.model.write(f"model.ilp")
 
