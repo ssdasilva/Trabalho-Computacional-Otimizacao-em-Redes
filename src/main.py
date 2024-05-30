@@ -251,9 +251,9 @@ class CommonDueDateSchedulingProblem:
 
     def _shake(self, x, k):
         if k == 1:
-            return self._shake_on_neighborhood_1(x, k)
+            return self._shake_on_neighborhood_1(x)
         elif k == 2:
-            return self._shake_on_neighborhood_2(x, k)
+            return self._shake_on_neighborhood_2(x)
         return self._shake_on_neighborhood_3(x, k)
 
     def _fix_J_Matrix_from_J_vector(self, J_vector, J_matrix, num_tasks):
@@ -276,7 +276,7 @@ class CommonDueDateSchedulingProblem:
         return converted_array
 
     # Randomly select a delayed task and put in the first order
-    def _shake_on_neighborhood_1(self, x, k):
+    def _shake_on_neighborhood_1(self, x):
         e, t, J = x
         num_tasks = len(e)
 
@@ -292,10 +292,27 @@ class CommonDueDateSchedulingProblem:
         # Here we call model optimize only to compute objective function from new shaked solution
         self.model.optimize()
 
+    # Randomly select a delayed task and randomly select a early task and switch them
+    def _shake_on_neighborhood_2(self, x):
+        e, t, J = x
+        num_tasks = len(e)
 
-    def _shake_on_neighborhood_2(self, x, k):
-        #TO DO
-        return
+        delayed_tasks, early_tasks = self._get_delayed_and_early_tasks(t, num_tasks)
+        num_delayed_tasks = len(delayed_tasks)
+        num_early_tasks = len(early_tasks)
+        random_selected_delay_task_index = random.randint(0, num_delayed_tasks-1)
+        random_selected_early_task_index = random.randint(0, num_early_tasks-1)
+
+        J_vector = self._get_array_from_J_matrix(J, num_tasks)
+
+        # Switch elements
+        aux = J_vector[random_selected_delay_task_index]
+        J_vector[random_selected_delay_task_index] = J_vector[random_selected_early_task_index]
+        J_vector[random_selected_early_task_index] = aux
+
+        self._fix_J_Matrix_from_J_vector(J_vector, J, num_tasks)
+        # Here we call model optimize only to compute objective function from new shaked solution
+        self.model.optimize()
 
     def _shake_on_neighborhood_3(self, x, k):
         #TO DO
@@ -312,7 +329,7 @@ class CommonDueDateSchedulingProblem:
 
         #print("Relax and fix")
         #self._relax_and_fix(J, num_tasks)
-        self._fix_and_optimize(J, num_tasks)
+        #self._fix_and_optimize(J, num_tasks)
         
         for v in self.model.getVars():
             print(f"{v.VarName} {v.X:g}")
@@ -322,7 +339,7 @@ class CommonDueDateSchedulingProblem:
         # test shake method
 
         self._shake((e, t, J), 1)
-
+        self._shake((e, t, J), 2)
         #self.model.computeIIS()
         #self.model.write(f"model.ilp")
 
