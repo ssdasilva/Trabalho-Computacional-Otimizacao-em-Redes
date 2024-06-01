@@ -15,6 +15,7 @@ parser=argparse.ArgumentParser(
 
 parser.add_argument('--license', type=str, default=default_gurobi_license_path, help=f'Caminho para a licença gurobi (Default: {default_gurobi_license_path})')
 parser.add_argument('--file', type=str, default=f"{default_folder_path}/data/sch100k1.csv", help=f'Caminho do arquivo csv (Default: {default_folder_path}/data/sch100k1.csv)')
+parser.add_argument('--output_path', type=str, default='.', help=f'Caminho do arquivo de saída (Default: diretório corrente)')
 parser.add_argument('--due_date', type=int, default=454, help=f'Tempo de entrega comum das tarefas (Default: 454)')
 parser.add_argument('--verbose', type=bool, default=True, help=f'Habilitar modo verboso (Default: True)')
 args=parser.parse_args()
@@ -24,6 +25,7 @@ license_path = args.license
 input_filename = args.file
 due_date = args.due_date
 verbose = args.verbose
+output_file_path = args.output_path
 
 # Set the environment variable to point to your license file
 os.environ["GRB_LICENSE_FILE"] = license_path
@@ -425,7 +427,7 @@ class CommonDueDateSchedulingProblem:
         return best_solution_model, best_solution_e, best_solution_t, best_solution_d, best_solution_tau, best_solution_J
 
     def write_best_solution_found(self, J_matrix, num_tasks):
-        with open("AnaSamuel.csv", "w") as file:
+        with open(f"{output_file_path}/AnaSamuel.csv", "w") as file:
             J_vector = self._get_array_from_J_matrix(J_matrix, num_tasks)
             for task in J_vector:
                 file.write(f"{task}")
@@ -443,7 +445,7 @@ class CommonDueDateSchedulingProblem:
         
         self._define_initial_condition(beta, alpha, J)
         self.model.optimize()
-        _, _, _, _, _, best_solution_J = self._BVNS((e, t, J, num_tasks, p, alpha, beta, M), 3, 10000)
+        _, _, _, _, _, best_solution_J = self._BVNS((e, t, J, num_tasks, p, alpha, beta, M), 3, 1)
 
         if self.verbose:
             print(f"Obj: {self.model.ObjVal:g}")
