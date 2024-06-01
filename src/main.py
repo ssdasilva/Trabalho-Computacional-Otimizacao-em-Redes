@@ -1,10 +1,32 @@
 from gurobipy import *
 import random
-import numpy as np
+import numpy
 import csv
+import argparse
+import os
+
+script_path = os.path.realpath(__file__)
+default_folder_path = os.path.dirname(os.path.dirname(script_path))
+default_gurobi_license_path = f"{os.path.expanduser('~')}/Downloads/gurobi.lic"
+
+parser=argparse.ArgumentParser(
+    description='''Trabalho computacional - otimização em redes. ''',
+    epilog="""Alunos: Ana Júlia de Lima Martins e Samuel Souza da Silva.""")
+
+parser.add_argument('--license', type=str, default=default_gurobi_license_path, help=f'Caminho para a licença gurobi (Default: {default_gurobi_license_path})')
+parser.add_argument('--file', type=str, default=f"{default_folder_path}/data/sch100k1.csv", help=f'Caminho do arquivo csv (Default: {default_folder_path}/data/sch100k1.csv)')
+parser.add_argument('--due_date', type=int, default=454, help=f'Tempo de entrega comum das tarefas (Default: 454)')
+parser.add_argument('--verbose', type=bool, default=True, help=f'Habilitar modo verboso (Default: True)')
+args=parser.parse_args()
+
+# Access the converted values
+license_path = args.license
+input_filename = args.file
+due_date = args.due_date
+verbose = args.verbose
 
 # Set the environment variable to point to your license file
-os.environ["GRB_LICENSE_FILE"] = "/home/samuel/Downloads/gurobi.lic"
+os.environ["GRB_LICENSE_FILE"] = license_path
 
 class CommonDueDateSchedulingModel:
     def __init__(self, due_date):
@@ -14,7 +36,12 @@ class CommonDueDateSchedulingModel:
     def _initialize_model(self):
         if self.model is None:
             self.model = Model(name = 'Common Due Date Scheduling Problem')
-            self.model.setParam('TimeLimit', 30)
+
+            if verbose == False:
+                self.model.setParam('OutputFlag', 0)
+
+            self.model.setParam('TimeLimit', 10)
+            
 
     def _add_input_variables(self, num_tasks):
         e = {}
@@ -200,7 +227,7 @@ class CommonDueDateSchedulingProblem:
             task_id = i + 1
             for j in range(0, num_tasks):
                 order = j +1
-                if i < round(0.3 * num_tasks):
+                if i < round(0.25 * num_tasks):
                     self._fix_variable(J[task_id][order], J[task_id][order].X)
                 elif i < round(0.6 * num_tasks) :
                     self._unfix_variable(J[task_id][order])
@@ -216,7 +243,7 @@ class CommonDueDateSchedulingProblem:
             task_id = i + 1
             for j in range(0, num_tasks):
                 order = j +1
-                if i < round(0.6 * num_tasks) :
+                if i < round(0.55 * num_tasks) :
                     self._fix_variable(J[task_id][order], J[task_id][order].X)
                 else:
                     self._unfix_variable(J[task_id][order])
@@ -409,9 +436,14 @@ class CommonDueDateSchedulingProblem:
         p, alpha, beta, M = self._read_tasks_from_csv(self.csv_filename)
         num_tasks = len(p)
         self.model, e, t, d, tau, J = CommonDueDateSchedulingModel(self.D_d).get_model(num_tasks, p, alpha, beta, M)
+        
+        
+        if not self.verbose:
+            print("\nVerbose mode disabled. This operation may take a while. Please, wait...")
+        
         self._define_initial_condition(beta, alpha, J)
         self.model.optimize()
-        _, _, _, _, _, best_solution_J = self._BVNS((e, t, J, num_tasks, p, alpha, beta, M), 3, 20)
+        _, _, _, _, _, best_solution_J = self._BVNS((e, t, J, num_tasks, p, alpha, beta, M), 3, 10000)
 
         if self.verbose:
             print(f"Obj: {self.model.ObjVal:g}")
@@ -423,7 +455,5 @@ class CommonDueDateSchedulingProblem:
 
         self.model.dispose()
 
-due_date = 454
-input_filename = '/home/samuel/Desktop/TC/data/sch100k1.csv'
-problem = CommonDueDateSchedulingProblem(input_filename, due_date, verbose=True)
+problem = CommonDueDateSchedulingProblem(input_filename, due_date, verbose=verbose)
 problem.compute_solution()
