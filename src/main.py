@@ -424,15 +424,15 @@ class CommonDueDateSchedulingProblem:
                 if (num_it >= max_iterations):
                     break
 
-        return best_solution_model, best_solution_e, best_solution_t, best_solution_d, best_solution_tau, best_solution_J
-
-    def write_best_solution_found(self, J_matrix, num_tasks):
+    def write_best_solution_found(self, num_tasks):
         with open(f"{output_file_path}/AnaSamuel.csv", "w") as file:
-            J_vector = self._get_array_from_J_matrix(J_matrix, num_tasks)
-            for task in J_vector:
-                file.write(f"{task}")
-                if task != J_vector[-1]:
-                    file.write(f", ")
+            for order in range(1, num_tasks+1):
+                for task in range(1, num_tasks+1):
+                    if self.model.getVarByName(f'J_{task}_{order}').X == 1:
+                        file.write(f"{task}")
+                        if task != num_tasks:
+                            file.write(f", ")
+                        break
 
     def compute_solution(self):
         p, alpha, beta, M = self._read_tasks_from_csv(self.csv_filename)
@@ -445,15 +445,21 @@ class CommonDueDateSchedulingProblem:
         
         self._define_initial_condition(beta, alpha, J)
         self.model.optimize()
-        _, _, _, _, _, best_solution_J = self._BVNS((e, t, J, num_tasks, p, alpha, beta, M), 3, 1)
+
+        # Set BVNS parameters
+        k_max = 3
+        max_iterations = 30
+
+        # Execute BVNS algorithm
+        self._BVNS((e, t, J, num_tasks, p, alpha, beta, M), k_max, max_iterations)
 
         if self.verbose:
-            print(f"Obj: {self.model.ObjVal:g}")
-
             for v in self.model.getVars():
                 print(f"{v.VarName} {v.X:g}")
+            
+            print(f"Objective function: {self.model.ObjVal:g}")
 
-        self.write_best_solution_found(best_solution_J, num_tasks)
+        self.write_best_solution_found(num_tasks)
 
         self.model.dispose()
 
