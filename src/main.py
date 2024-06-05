@@ -18,6 +18,9 @@ parser.add_argument('--file', type=str, default=f"{default_folder_path}/data/sch
 parser.add_argument('--output_path', type=str, default='.', help=f'Caminho do arquivo de saída (Default: diretório corrente)')
 parser.add_argument('--due_date', type=int, default=454, help=f'Tempo de entrega comum das tarefas (Default: 454)')
 parser.add_argument('--verbose', type=bool, default=True, help=f'Habilitar modo verboso (Default: True)')
+parser.add_argument('--max_iterations', type=int, default=30, help=f'Máximo número de iterações para o algoritmo BVNS (Default: 30)')
+parser.add_argument('--max_time', type=int, default=10, help=f'Tempo máximo, em segundos, para cada iteração do algoritmo fix-and-optmize (Default: 10)')
+
 args=parser.parse_args()
 
 # Access the converted values
@@ -26,6 +29,8 @@ input_filename = args.file
 due_date = args.due_date
 verbose = args.verbose
 output_file_path = args.output_path
+max_iterations = args.max_iterations
+max_time = args.max_time
 
 # Set the environment variable to point to your license file
 os.environ["GRB_LICENSE_FILE"] = license_path
@@ -42,7 +47,8 @@ class CommonDueDateSchedulingModel:
             if verbose == False:
                 self.model.setParam('OutputFlag', 0)
 
-            self.model.setParam('TimeLimit', 10)
+            # used value 150 when trying 200 tasks
+            self.model.setParam('TimeLimit', max_time)
             
 
     def _add_input_variables(self, num_tasks):
@@ -412,7 +418,7 @@ class CommonDueDateSchedulingProblem:
             k = 1
             while k <= k_max:
                 self._shake(x, k)
-                self._fix_and_optimize(J, num_tasks)  
+                self._fix_and_optimize(J, num_tasks)
                 J, e, t, self.model, k = self._neighborhood_change((best_solution_J, best_solution_e,best_solution_t, best_solution_model), (J, e, t, self.model), k)
                 self._fix_current_J_matrix(J, num_tasks)
                 self.model.optimize()
@@ -430,7 +436,7 @@ class CommonDueDateSchedulingProblem:
                 for task in range(1, num_tasks+1):
                     if self.model.getVarByName(f'J_{task}_{order}').X == 1:
                         file.write(f"{task}")
-                        if task != num_tasks:
+                        if order != num_tasks:
                             file.write(f", ")
                         break
 
@@ -448,9 +454,9 @@ class CommonDueDateSchedulingProblem:
 
         # Set BVNS parameters
         k_max = 3
-        max_iterations = 30
 
         # Execute BVNS algorithm
+        # Used max_iterations equal to 50 when using 200 tasks
         self._BVNS((e, t, J, num_tasks, p, alpha, beta, M), k_max, max_iterations)
 
         if self.verbose:
