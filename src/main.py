@@ -19,7 +19,7 @@ parser.add_argument('--output_path', type=str, default='.', help=f'Caminho do ar
 parser.add_argument('--due_date', type=int, default=454, help=f'Tempo de entrega comum das tarefas (Default: 454)')
 parser.add_argument('--verbose', type=bool, default=True, help=f'Habilitar modo verboso (Default: True)')
 parser.add_argument('--max_iterations', type=int, default=30, help=f'Máximo número de iterações para o algoritmo BVNS (Default: 30)')
-parser.add_argument('--max_time', type=int, default=10, help=f'Tempo máximo, em segundos, para cada iteração do algoritmo fix-and-optmize (Default: 10)')
+parser.add_argument('--max_time', type=int, default=15, help=f'Tempo máximo, em segundos, para cada iteração do algoritmo fix-and-optmize (Default: 10)')
 
 args=parser.parse_args()
 
