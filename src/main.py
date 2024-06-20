@@ -431,7 +431,7 @@ class CommonDueDateSchedulingProblem:
                     break
 
     def write_best_solution_found(self, num_tasks):
-        with open(f"{output_file_path}/AnaSamuel.csv", "w") as file:
+        with open(f"{output_file_path}/LimaSouza.csv", "w") as file:
             for order in range(1, num_tasks+1):
                 for task in range(1, num_tasks+1):
                     if self.model.getVarByName(f'J_{task}_{order}').X == 1:
