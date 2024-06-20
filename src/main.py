@@ -169,51 +169,6 @@ class CommonDueDateSchedulingProblem:
             print("Error: it was not able to find a valid solution")
             exit(1)
 
-    def _relax_and_fix(self, J, num_tasks):
-        if self.verbose:
-            print ("First iteration of relax and fix...")
-        for i in range(0, num_tasks):
-            task_id = i + 1
-            for j in range(0, num_tasks):
-                order = j +1
-                if i < round(0.3 * num_tasks):
-                    self._unfix_variable(J[task_id][order])
-                else:
-                    self._relax_variable(J[task_id][order])
-        
-        self.model.optimize()
-        self._found_a_valid_solution()
-
-        if self.verbose:
-            print ("Second iteration of relax and fix...")
-        for i in range(0, num_tasks):
-            task_id = i + 1
-            for j in range(0, num_tasks):
-                order = j +1
-                if i < round(0.3 * num_tasks):
-                    self._fix_variable(J[task_id][order], J[task_id][order].X)
-                elif i < round(0.6 * num_tasks) :
-                    self._unrelax_variable(J[task_id][order], GRB.INTEGER)
-                else:
-                    self._relax_variable(J[task_id][order])
-        
-        self.model.optimize()
-        self._found_a_valid_solution()
-
-        if self.verbose:
-            print ("Third iteration of relax and fix...")
-        for i in range(0, num_tasks):
-            task_id = i + 1
-            for j in range(0, num_tasks):
-                order = j +1
-                if i < round(0.6 * num_tasks) :
-                    self._fix_variable(J[task_id][order], J[task_id][order].X)
-                else:
-                    self._unrelax_variable(J[task_id][order], GRB.INTEGER)
-        
-        self.model.optimize()
-        self._found_a_valid_solution()
-
     def _fix_and_optimize(self, J, num_tasks):
         if self.verbose:
             print ("First iteration of fix and optmize...")
